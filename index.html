@@ -399,7 +399,7 @@ const OPN = { "ABERTURA":"Consolidado abertura de conta", "PJ CORRENTISTA":"PJ C
 const ABER = "ABERTURA", CORR = "PJ CORRENTISTA", NCOR = "PJ NAO CORRENTISTA";
 /* operacoes que compoem cada visao: abertura de conta = Correntista + Nao Correntista */
 const opsDe = op => (op || S.op || ABER) === ABER ? [CORR, NCOR] : [op || S.op];
-const MET = ["DISCAGEM","ALO","CONTATO_EFETIVO","CPC","SUCESSO","TEMPO_FALADO_SEG","AGENTES_ATENDENDO","AGENTES_LOGADOS","LOGADO_SEG","PAUSA_SEG"];
+const MET = ["DISCAGEM","ALO","CONTATO_EFETIVO","CPC","SUCESSO","TEMPO_FALADO_SEG","AGENTES_ATENDENDO","AGENTES_LOGADOS","LOGADO_SEG","PAUSA_SEG","AGENTES_PAUSA"];
 const S = { tabModo:"n", tabSort:{ k:"tot", d:-1 }, cfg:{}, editMeta:false, rows:null, tab:[], meta:null, loadedAsset:null, datas:[], data:"", op:"", view:"hh", atualizado:"" };
 const fD = iso => iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : "–";
 const fDelta = v => !isFinite(v) ? "–" : (v >= 0 ? "+" : "−") + fPct(Math.abs(v), 0);
@@ -474,7 +474,7 @@ $("#tabs").onclick = e => { const b = e.target.closest("button"); if (!b) return
 function soma(rows){ const a = {}; MET.forEach(m => a[m] = 0); rows.forEach(r => MET.forEach(m => a[m] += r[m])); return a; }
 const daOp = r => opsDe("").includes(r.OP);
 /* no consolidado, HC e agentes vem da linha PJ CONSOLIDADO (agente conta 1 vez, mesmo logado em Correntista e Nao Correntista) */
-const HCF = ["AGENTES_LOGADOS","LOGADO_SEG","PAUSA_SEG","AGENTES_ATENDENDO"];
+const HCF = ["AGENTES_LOGADOS","LOGADO_SEG","PAUSA_SEG","AGENTES_ATENDENDO","AGENTES_PAUSA"];
 function horasDia(d){ return Array.from(new Set(S.rows.filter(r => r.DATA === d && daOp(r)).map(r => r.HORA))).sort((a, b) => a - b); }
 function porHora(d, op){
   const lst = opsDe(op);
@@ -577,13 +577,15 @@ function viewHH(){
   const m7 = h => cmp.d7.length ? cmp.d7.reduce((s, dd) => s + ((porHora(dd, "").get(h) || {}).SUCESSO || 0), 0) / cmp.d7.length : NaN;
   /* a hora em andamento so aparece quando fecha (ex.: a linha das 11h entra a partir das 12h) */
   const hAtual = horaAtual(d), hs = horasDia(d).filter(h => h < hAtual);
-  const H = ["Hora","Discagem","HC logado","HC produtivo","% produtivo","Alô","% Alô","Contato efetivo","% Contato","CPC","% CPC","Sucesso","% Sucesso","Conv. Alô","D-1","Δ D-1","Média 7d","Δ 7d","Sucesso/HC prod."];
+  const H = ["Hora","Discagem","HC logado","HC produtivo","% produtivo","Em pausa","Tempo médio pausa","Alô","% Alô","Contato efetivo","% Contato","CPC","% CPC","Sucesso","% Sucesso","Conv. Alô","D-1","Δ D-1","Média 7d","Δ 7d","Sucesso/HC prod."];
   const semHC = tot0 => tot0.LOGADO_SEG <= 0;
   const linha = (rot, a, sD1, sM7, cls) => { const n = cls ? Math.max(1, hs.length) : 1, sh = semHC(a);
     /* HC = PESSOAS logadas na hora; HC produtivo = HC x % do tempo logado fora de pausa */
     const pProd = sh ? NaN : div(a.LOGADO_SEG - a.PAUSA_SEG, a.LOGADO_SEG);
     const hcL = (sh ? a.AGENTES_ATENDENDO : a.AGENTES_LOGADOS) / n, hcP = hcL * pProd;
     return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td><b>' + rot + '</b></td><td>' + fInt(a.DISCAGEM) + '</td><td>' + fInt(hcL) + (sh ? '<span style="color:var(--muted)">*</span>' : '') + '</td><td>' + (sh ? '–' : fInt(hcP)) + '</td><td class="pctcol">' + (sh ? '–' : fPct(pProd, 0)) + '</td>'
+      + '<td>' + (sh ? '–' : fInt(hcL - hcP)) + '</td>'
+      + '<td>' + (sh ? '–' : fHMS(div(a.PAUSA_SEG, a.AGENTES_LOGADOS))) + '</td>'
       + '<td>' + fInt(a.ALO) + '</td><td class="pctcol">' + fPct(div(a.ALO, a.DISCAGEM), 1) + '</td><td>' + fInt(a.CONTATO_EFETIVO) + '</td><td class="pctcol">' + fPct(div(a.CONTATO_EFETIVO, a.ALO), 1) + '</td>'
       + '<td>' + fInt(a.CPC) + '</td><td class="pctcol">' + fPct(div(a.CPC, a.CONTATO_EFETIVO), 1) + '</td><td><b>' + fInt(a.SUCESSO) + '</b></td><td class="pctcol">' + fPct(div(a.SUCESSO, a.CONTATO_EFETIVO), 1) + '</td><td class="pctcol">' + fPct(div(a.SUCESSO, a.ALO), 2) + '</td>'
       + '<td>' + (isFinite(sD1) ? fInt(sD1) : '–') + '</td><td style="color:' + corD(div(a.SUCESSO, sD1) - 1) + '">' + fDelta(div(a.SUCESSO, sD1) - 1) + '</td>'
@@ -591,7 +593,7 @@ function viewHH(){
   const tot = soma(Array.from(hoje.values()));
   const tD1 = hs.reduce((s, h) => s + ((d1.get(h) || {}).SUCESSO || 0), 0), tM7 = hs.reduce((s, h) => s + (m7(h) || 0), 0);
   return '<div class="card"><h2>Hora a hora · ' + OPN[S.op || ABER] + ' · ' + fD(d) + '</h2>'
-    + '<p class="hint" style="margin-top:0">HC logado = agentes (pessoas) logados na hora; % produtivo = parte do tempo logado fora de pausa; HC produtivo = HC logado × % produtivo. No consolidado cada agente conta uma vez. D-1 = ' + (cmp.d1 ? fD(cmp.d1) : "sem dado") + ' · média 7d = ' + cmp.d7.length + ' dia(s) anteriores com operação.</p>'
+    + '<p class="hint" style="margin-top:0">HC logado = agentes (pessoas) logados na hora; % produtivo = parte do tempo logado fora de pausa; HC produtivo = HC logado × % produtivo; Em pausa = HC logado − HC produtivo (o tempo de pausa convertido em pessoas: logado = produtivo + pausa). Tempo médio pausa = tempo de pausa por agente logado na hora. D-1 = ' + (cmp.d1 ? fD(cmp.d1) : "sem dado") + ' · média 7d = ' + cmp.d7.length + ' dia(s) anteriores com operação.</p>'
     + '<div style="overflow-x:auto"><table class="x fit"><thead><tr>' + H.map(h => '<th>' + h + '</th>').join("") + '</tr></thead><tbody>'
     + hs.map(h => linha(h + "h", hoje.get(h), cmp.d1 ? ((d1.get(h) || {}).SUCESSO || 0) : NaN, m7(h))).join("")
     + linha("Total", tot, cmp.d1 ? tD1 : NaN, tM7, "tot") + '</tbody></table></div>'
@@ -648,6 +650,7 @@ function bindTab(){
   document.querySelectorAll("#view th.sort").forEach(t => t.onclick = () => { const k = isNaN(+t.dataset.k) ? t.dataset.k : +t.dataset.k;
     if (S.tabSort.k === k) S.tabSort.d *= -1; else { S.tabSort.k = k; S.tabSort.d = (k === "tipo" || k === "status") ? 1 : -1; } refresh(); });
 }
+const fHMS = s => { if (!isFinite(s)) return "–"; s = Math.round(s); const p2 = x => String(x).padStart(2, "0"); return p2(Math.floor(s / 3600)) + ":" + p2(Math.floor(s % 3600 / 60)) + ":" + p2(s % 60); };
 const fMS = s => { if (!isFinite(s)) return "–"; s = Math.round(s); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
 $("#btnXlsx").onclick = () => {
   if (!S.rows) return;
