@@ -590,7 +590,8 @@ function viewHH(){
       + '<td>' + fInt(a.CPC) + '</td><td class="pctcol">' + fPct(div(a.CPC, a.CONTATO_EFETIVO), 1) + '</td><td><b>' + fInt(a.SUCESSO) + '</b></td><td class="pctcol">' + fPct(div(a.SUCESSO, a.CONTATO_EFETIVO), 1) + '</td><td class="pctcol">' + fPct(div(a.SUCESSO, a.ALO), 2) + '</td>'
       + '<td>' + (isFinite(sD1) ? fInt(sD1) : '–') + '</td><td style="color:' + corD(div(a.SUCESSO, sD1) - 1) + '">' + fDelta(div(a.SUCESSO, sD1) - 1) + '</td>'
       + '<td>' + (isFinite(sM7) ? fDec(sM7, 1) : '–') + '</td><td style="color:' + corD(div(a.SUCESSO, sM7) - 1) + '">' + fDelta(div(a.SUCESSO, sM7) - 1) + '</td><td>' + (sh ? fDec(div(a.SUCESSO, hcL), 2) + '<span style="color:var(--muted)">*</span>' : fDec(div(a.SUCESSO, hcP), 2)) + '</td></tr>'; };
-  const tot = soma(Array.from(hoje.values()));
+  /* Total = so as horas exibidas (fechadas); a hora em andamento fica de fora, como as linhas */
+  const tot = soma(hs.map(h => hoje.get(h)).filter(Boolean));
   const tD1 = hs.reduce((s, h) => s + ((d1.get(h) || {}).SUCESSO || 0), 0), tM7 = hs.reduce((s, h) => s + (m7(h) || 0), 0);
   return '<div class="card"><h2>Hora a hora · ' + OPN[S.op || ABER] + ' · ' + fD(d) + '</h2>'
     + '<p class="hint" style="margin-top:0">HC logado = agentes (pessoas) logados na hora; % produtivo = parte do tempo logado fora de pausa; HC produtivo = HC logado × % produtivo; Em pausa = HC logado − HC produtivo (o tempo de pausa convertido em pessoas: logado = produtivo + pausa). Tempo médio pausa = tempo de pausa por agente logado na hora. D-1 = ' + (cmp.d1 ? fD(cmp.d1) : "sem dado") + ' · média 7d = ' + cmp.d7.length + ' dia(s) anteriores com operação.</p>'
